@@ -2,7 +2,7 @@ import os
 import torch
 import argparse
 
-from models.lion_t5 import LIONT5InstructAdapter  # register
+from models.lion_t5 import LIONT5InstructAdapter
 from evaluation.img_cap_dataset import ImgCapDataset
 from common.registry import registry
 from omegaconf import OmegaConf
