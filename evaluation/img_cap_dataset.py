@@ -53,7 +53,8 @@ class ImgCapDataset(Dataset):
             for info in data:
                 img_id = info["image_id"]
                 img_path = info["image_path"]
-                img_path = os.path.join(self.img_path, img_path)
+                img_name = os.path.basename(img_path)
+                img_path = os.path.join(self.img_path, img_name)
                 if not os.path.exists(img_path):
                     i += 1
                     continue
