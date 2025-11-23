@@ -378,6 +378,16 @@ class LIONT5InstructAdapter(BaseModel):
 
         return inputs_embeds
 
+    def _insert_softTagHint(self, samples, input_tokens, inputs_embeds):
+        if self.enable_semantic_tags:
+            bs = inputs_embeds.size(0)
+            sp_embeds = self.soft_prompt_hint.expand(bs, -1).to(inputs_embeds.dtype)
+            sp_index = (input_tokens.input_ids == self.tag_softPrompt_id).nonzero(
+                as_tuple=True
+            )
+            inputs_embeds[sp_index] = sp_embeds
+        return inputs_embeds
+
     def get_optimizer_params(self, weight_decay, lr_scale=1):
         for n, p in self.named_parameters():
             p.requires_grad = False  # Freeze all parameters first
