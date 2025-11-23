@@ -7,6 +7,7 @@ from evaluation.img_cap_dataset import ImgCapDataset
 from common.registry import registry
 from omegaconf import OmegaConf
 from pycocoevalcap.cider.cider import Cider
+from tqdm import tqdm
 
 
 def build_model(cfg):
@@ -46,13 +47,14 @@ def output_image_captions(model, dset: ImgCapDataset):
     question = "Please describe the image using a single short sentence."
     gts = {}
     res = {}
-    for sample in dset:
+
+    for sample in tqdm(dset):
         img_id, img, ram_img, caption = sample
         gts[img_id] = [caption]
         hyp_caption = model.generate(
             {
-                "image": img,
-                "ram_img": ram_img,
+                "image": img.unsqueeze(0),
+                "ram_img": ram_img.unsqueeze(0),
                 "question": [question],
                 # "tags_for_dynamic_prompt": t1,
                 "category": "image_level",
@@ -65,14 +67,16 @@ def output_image_captions(model, dset: ImgCapDataset):
 
 def main():
     cider = Cider()
+    coco_dset, textcaps_dset = build_datasets()
+
     args = parse_args()
     cfg = OmegaConf.load(args.cfg_path)
 
     model = build_model(cfg)
+    model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    coco_dset, textcaps_dset = build_datasets()
     coco_gts, coco_res = output_image_captions(model, coco_dset)
     textcaps_gts, textcaps_res = output_image_captions(model, textcaps_dset)
 

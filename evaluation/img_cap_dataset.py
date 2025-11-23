@@ -29,15 +29,19 @@ class ImgCapDataset(Dataset):
 
             id_to_fname = {img["id"]: img["file_name"] for img in data["images"]}
             samples = []
+            i = 0
             for ann in data["annotations"]:
                 caption = ann["caption"]
                 img_id = ann["image_id"]
                 file_name = id_to_fname[img_id]
                 img_path = os.path.join(self.img_path, file_name)
-                # if not os.path.exists(img_path):
-                #     raise RuntimeError(f"File not matching: {img_path}")
+                if not os.path.exists(img_path):
+                    i += 1
+                    continue
+                    # raise RuntimeError(f"File not matching: {img_path}, {i} files matched")
                 samples.append((img_id, img_path, caption))
             self.samples = samples
+            print(f"COCO {i} files missing {len(samples)} loaded.")
 
     def _load_textcaps_ann_file(self):
         with open(self.ann_path, "r") as f:
@@ -45,15 +49,19 @@ class ImgCapDataset(Dataset):
             data = data["data"]
 
             samples = []
+            i = 0
             for info in data:
                 img_id = info["image_id"]
                 img_path = info["image_path"]
                 img_path = os.path.join(self.img_path, img_path)
-                # if not os.path.exists(img_path):
-                #     raise RuntimeError(f"File not matching: {img_path}")
+                if not os.path.exists(img_path):
+                    i += 1
+                    continue
+                    # raise RuntimeError(f"File not matching: {img_path}, {i} files matched")
                 caption = info["caption_str"]
                 samples.append((img_id, img_path, caption))
             self.samples = samples
+            print(f"TextCaps {i} files missing {len(samples)} loaded.")
 
     def __len__(self):
         return len(self.samples)
@@ -62,9 +70,9 @@ class ImgCapDataset(Dataset):
         img_id, img_path, caption = self.samples[idx]
         with Image.open(img_path) as img:
             img = img.convert("RGB")
-            img = self.processor(img)
+            proc_img = self.processor(img)
             ram_img = self.ram_processor(img)
-            sample = (img_id, img, ram_img, caption)
+            sample = (img_id, proc_img, ram_img, caption)
 
         return sample
 
