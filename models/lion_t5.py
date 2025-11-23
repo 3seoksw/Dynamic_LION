@@ -71,10 +71,10 @@ class LIONT5InstructAdapter(BaseModel):
         vit_precision="fp16",
         freeze_vit=True,
         num_query_token=32,
-        use_lion: bool = False,
+        dynamic_soft_prompt: bool = True,
     ):
         super().__init__()
-        self.use_lion = use_lion
+        self.dynamic_soft_prompt = dynamic_soft_prompt
         assert bert_model is not None, "The path for bert model is not provided."
         assert vit_model is not None, "The path for vit model is not provided."
         assert llm_model is not None, "The path for llm model is not provided."
@@ -155,7 +155,7 @@ class LIONT5InstructAdapter(BaseModel):
             self.tag_softPrompt_id = self.t5_tokenizer.convert_tokens_to_ids(
                 tag_sp_token
             )
-            if self.use_lion:
+            if not self.dynamic_soft_prompt:
                 self.tag_prompt = "According to <extra_id_0>, you are allowed to use or partially use the following tags: [{}]. "
                 self.soft_prompt_hint = nn.Parameter(
                     torch.zeros(self.t5_model.config.hidden_size)
@@ -301,7 +301,7 @@ class LIONT5InstructAdapter(BaseModel):
     def _insert_tags(self, samples, prompt):
         if self.enable_semantic_tags:
             assert self.tag_prompt is not None, "Please provide Tags prompt."
-            if self.use_lion:
+            if not self.dynamic_soft_prompt:
                 if "tags" in samples:
                     tags = samples["tags"]
                 else:
@@ -504,7 +504,7 @@ class LIONT5InstructAdapter(BaseModel):
             )
 
             text_embeds = self.t5_model.encoder.embed_tokens(input_tokens.input_ids)
-            if self.use_lion:
+            if not self.dynamic_soft_prompt:
                 text_embeds = self._insert_softTagHint(
                     samples, input_tokens, text_embeds
                 )
@@ -553,7 +553,7 @@ class LIONT5InstructAdapter(BaseModel):
 
         with self.maybe_autocast(dtype=torch.bfloat16):
             text_embeds = self.t5_model.encoder.embed_tokens(input_tokens.input_ids)
-            if self.use_lion:
+            if not self.dynamic_soft_prompt:
                 text_embeds = self._insert_softTagHint(
                     samples, input_tokens, text_embeds
                 )
@@ -589,7 +589,7 @@ class LIONT5InstructAdapter(BaseModel):
 
     @classmethod
     def from_config(cls, cfg):
-        use_lion = cfg.get("use_lion")
+        dynamic_soft_prompt = cfg.get("dynamic_soft_prompt")
 
         bert_model = cfg.get("bert_model")
         vit_model = cfg.get("vit_model")
@@ -612,7 +612,7 @@ class LIONT5InstructAdapter(BaseModel):
         num_query_token = cfg.get("num_query_token", 32)
 
         model = cls(
-            use_lion=use_lion,
+            dynamic_soft_prompt=dynamic_soft_prompt,
             bert_model=bert_model,
             vit_model=vit_model,
             llm_model=llm_model,
