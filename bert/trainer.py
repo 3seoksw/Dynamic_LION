@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
-from typing import Callable
 
-from datetime import datetime
-from pathlib import Path
+from typing import Callable
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from evaluation.logger import Logger
 
 
 class Trainer:
@@ -32,19 +31,9 @@ class Trainer:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device)
 
+        self.logger = Logger(log_path, metrics)
         # history: [{epoch: 0, split: train, loss: 10, etc.}, {}]
         self.history = []
-        metrics_str = ""
-        for metric in metrics.keys():
-            metrics_str += f",pos_{metric},neg_{metric}"
-
-        log_dir = Path(log_path)
-        log_dir.mkdir(parents=True, exist_ok=True)
-        self.log_path = log_dir / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
-        if self.log_path is not None:
-            with open(self.log_path, "w") as f:
-                f.write(f"epoch,step,split,loss{metrics_str}\n")
-
         self.curr_epoch = -1
         self.curr_step = -1
 
@@ -63,7 +52,7 @@ class Trainer:
             neg_embs = neg_embs.to(self.device)
             history = self.train_step(tag_embs, embs, neg_embs)
             self.history.append(history)
-            self.log_step(history)
+            self.logger.log_step(history)
 
     def train_step(self, x, pos, neg):
         history = {"epoch": self.curr_epoch, "step": self.curr_step, "split": "train"}
@@ -129,7 +118,7 @@ class Trainer:
             "pos_cosine_similarity": total_pos_cos,
             "neg_cosine_similarity": total_neg_cos,
         }
-        self.log_step(history, True)
+        self.logger.log_step(history, True)
 
     def validation_step(self, x, pos, neg):
         history = {"epoch": self.curr_epoch, "step": -1, "split": "train"}
@@ -148,20 +137,3 @@ class Trainer:
             history[neg_k] = neg_v
 
         return history
-
-    def log_step(self, history: dict, verbose: bool = False):
-        if self.log_path is None:
-            return
-
-        epoch = history["epoch"]
-        step = history["step"]
-        split = history["split"]
-        loss = history["loss"]
-        pos_cos = history["pos_cosine_similarity"]
-        neg_cos = history["neg_cosine_similarity"]
-
-        with open(self.log_path, "a") as f:
-            f.write(f"{epoch},{step},{split},{loss},{pos_cos},{neg_cos}\n")
-        if verbose:
-            epoch = self.curr_epoch
-            print(f"Epoch {epoch}: {split} loss: {loss:.3f}, pos: {pos_cos:.3f}, neg: {neg_cos:.3f}")
