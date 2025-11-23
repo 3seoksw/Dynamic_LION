@@ -8,14 +8,24 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from accelerate import Accelerator
 from common.optims import LinearWarmupCosineLRScheduler
+from evaluation.logger import Logger
 
 
 class Trainer:
-    def __init__(self, cfg, accelerator: Accelerator, model, train_datasets: List[Dataset]) -> None:
+    def __init__(
+        self,
+        cfg,
+        accelerator: Accelerator,
+        model,
+        train_datasets: List[Dataset],
+    ) -> None:
         self.cfg = cfg
         self.accelerator = accelerator
         self._model = model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        out_dir = cfg.run.get("output_dir")
+        self.logger = Logger(log_path=out_dir, metrics=None)
 
         # run config
         self.batch_size = int(cfg.run.batch_size_train)
@@ -25,7 +35,9 @@ class Trainer:
         self.print_freq = int(cfg.run.get("print_freq", 100))
 
         # support multiple training datasets
-        assert isinstance(train_datasets, list) and len(train_datasets) > 0, "train_datasets must be a non-empty list"
+        assert (
+            isinstance(train_datasets, list) and len(train_datasets) > 0
+        ), "train_datasets must be a non-empty list"
         self.train_datasets = train_datasets
         self.train_loaders: List[DataLoader] = []
         self.ratios: List[float] = []
@@ -69,7 +81,9 @@ class Trainer:
         )
 
         # prepare with accelerator (model, optimizer, and all loaders)
-        prepared = self.accelerator.prepare(self._model, self.optimizer, *self.train_loaders)
+        prepared = self.accelerator.prepare(
+            self._model, self.optimizer, *self.train_loaders
+        )
         self.model = prepared[0]
         self.optimizer = prepared[1]
         self.train_loaders = list(prepared[2:])
@@ -80,7 +94,9 @@ class Trainer:
         os.makedirs(out_dir, exist_ok=True)
         state_dict = self.accelerator.get_state_dict(self.model)
         # strip frozen params
-        param_grad_dic = {k: v.requires_grad for (k, v) in self._model.named_parameters()}
+        param_grad_dic = {
+            k: v.requires_grad for (k, v) in self._model.named_parameters()
+        }
         for k in list(state_dict.keys()):
             if k in param_grad_dic and not param_grad_dic[k]:
                 del state_dict[k]
@@ -107,7 +123,11 @@ class Trainer:
             counts = [int(x) for x in raw]
             rem = iters - sum(counts)
             if rem > 0:
-                fracs = sorted([(i, raw[i] - counts[i]) for i in range(len(raw))], key=lambda t: t[1], reverse=True)
+                fracs = sorted(
+                    [(i, raw[i] - counts[i]) for i in range(len(raw))],
+                    key=lambda t: t[1],
+                    reverse=True,
+                )
                 for i in range(rem):
                     counts[fracs[i % len(fracs)][0]] += 1
         schedule: List[int] = []
@@ -140,6 +160,7 @@ class Trainer:
             running = 0.0
 
             for it, li in enumerate(schedule):
+                history = {"epoch": epoch, "step": it, "split": "train"}
                 # fetch batch from selected loader
                 try:
                     samples = next(iters[li])
@@ -155,10 +176,12 @@ class Trainer:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
                 running += loss.item()
+                history["loss"] = loss.item()
 
                 if (it + 1) % self.print_freq == 0 and self.accelerator.is_main_process:
                     avg = running / self.print_freq
                     running = 0.0
+                    self.logger.log_step(history)
                     logging.info(
                         f"Epoch {epoch} Iter {it+1}/{self.iters_per_epoch} loss {avg:.4f} (loader {li})"
                     )
