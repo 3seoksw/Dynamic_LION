@@ -18,14 +18,14 @@ class Trainer:
         accelerator: Accelerator,
         model,
         train_datasets: List[Dataset],
+        log_path: str,
     ) -> None:
         self.cfg = cfg
         self.accelerator = accelerator
         self._model = model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        out_dir = cfg.run.get("output_dir")
-        self.logger = Logger(log_path=out_dir, metrics=None)
+        self.logger = Logger(log_path=log_path, metrics=None)
 
         # run config
         self.batch_size = int(cfg.run.batch_size_train)
@@ -176,10 +176,10 @@ class Trainer:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
                 running += loss.item()
-                history["loss"] = loss.item()
 
                 if (it + 1) % self.print_freq == 0 and self.accelerator.is_main_process:
                     avg = running / self.print_freq
+                    history["loss"] = avg
                     running = 0.0
                     self.logger.log_step(history)
                     logging.info(
