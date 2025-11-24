@@ -420,7 +420,6 @@ class RAM(nn.Module):
         # Process each image in batch
         tags_with_scores_list = []
         tags_only_list = []
-        tags_only_ch_list = []
         for i in range(bs):
             # Get top-k most confident predictions
             top_k_scores, top_k_indices = torch.topk(
@@ -439,22 +438,17 @@ class RAM(nn.Module):
             # Build tag: score pairs, excluding delete_tag_index
             tags_scores_pairs = []
             tags = []
-            tags_ch = []
             for idx, score in zip(final_indices_cpu, final_scores_cpu):
                 tag = self.tag_list[idx]
-                # token_chinese = self.tag_list_chinese[index].squeeze(axis=1)
-                tag_ch = self.tag_list_chinese[idx]
                 if idx not in self.delete_tag_index:
                     tags_scores_pairs.append(f"{tag}: {score}")
                 tags.append(tag)
-                tags_ch.append(tag_ch)
 
             tags_with_scores_list.append(", ".join(tags_scores_pairs))
             tags_only_list.append(", ".join(tags))
-            tags_only_ch_list.append(", ".join(tags_ch))
 
         if tag_only:
-            return tags_only_list, tags_only_ch_list
+            return tags_only_list
         return tags_with_scores_list
 
     def generate_tag_openset(
