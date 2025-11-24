@@ -282,7 +282,8 @@ class LIONT5InstructAdapter(BaseModel):
             images = torch.stack([self.ram_processor(img) for img in images]).to(
                 self.device
             )
-        tags = self.ram_model.generate_tag(images, threshold=0.85)[0]
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            tags = self.ram_model.generate_tag(images, threshold=0.85)[0]
         return [t.replace(" |", ",") for t in tags]
 
     def generate_tags_with_scores(self, images) -> List[str]:
