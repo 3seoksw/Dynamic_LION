@@ -1,5 +1,3 @@
-dynamic_soft_prompt: True
-
 model:
   # Required model paths
   bert_model: "weights/bert-base-uncased/"
@@ -9,6 +7,7 @@ model:
   ram_model: "weights/ram_swin_large_14m.pth"
   dynamic_prompt_bert_path: "bert-base-uncased"
   dynamic_prompt_bert_ckpt: "weights/bert_embeddings.pt"
+  dynamic_soft_prompt: False
 
   # Model behavior
   visual_input: "ALL"
