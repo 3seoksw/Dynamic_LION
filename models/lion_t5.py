@@ -157,12 +157,12 @@ class LIONT5InstructAdapter(BaseModel):
             )
             if not self.dynamic_soft_prompt:
                 self.tag_prompt = "According to <extra_id_0>, you are allowed to use or partially use the following tags: [{}]. "
-                self.soft_prompt_hint = nn.Parameter(
-                    torch.zeros(self.t5_model.config.hidden_size)
-                )
-                self.soft_prompt_hint.data.normal_(
-                    mean=0.0, std=self.t5_model.config.initializer_factor
-                )
+                # self.soft_prompt_hint = nn.Parameter(
+                #     torch.zeros(self.t5_model.config.hidden_size)
+                # )
+                # self.soft_prompt_hint.data.normal_(
+                #     mean=0.0, std=self.t5_model.config.initializer_factor
+                # )
             else:
                 self.tag_prompt = tag_sp_token + " "
         logging.info(f"boost_lr_scale:{boost_lr_scale}")
@@ -302,32 +302,19 @@ class LIONT5InstructAdapter(BaseModel):
     def _insert_tags(self, samples, prompt):
         if self.enable_semantic_tags:
             assert self.tag_prompt is not None, "Please provide Tags prompt."
-            if not self.dynamic_soft_prompt:
-                self._init_ram()
-                if "tags" in samples:
-                    tags = samples["tags"]
-                else:
-                    tags = self.generate_tags(samples["ram_image"])
-                    # tags = self.ram_model.generate_tags_with_scores(
-                    #     image=samples["ram_image"].to(self.device),
-                    #     tag_only=True,
-                    # )
-                prompt = [
-                    self.tag_prompt.format(tags) + tin
-                    for tags, tin in zip(tags, prompt)
-                ]
+            self._init_ram()
+            # Generate tags with scores for the BERT model
+            if "tags_for_dynamic_prompt" in samples:
+                tags_for_dynamic_prompt = samples["tags_for_dynamic_prompt"]
             else:
-                self._init_ram()
-                # Generate tags with scores for the BERT model
-                if "tags_for_dynamic_prompt" in samples:
-                    tags_for_dynamic_prompt = samples["tags_for_dynamic_prompt"]
-                else:
-                    tags_for_dynamic_prompt = self.ram_model.generate_tags_with_scores(
-                        samples["ram_image"].to(self.device)
-                    )
-                    # Store the dynamic prompt input
-                    samples["tags_for_dynamic_prompt"] = tags_for_dynamic_prompt
-                prompt = [self.tag_prompt + tin for tin in prompt]
+                tag_only = not self.dynamic_soft_prompt
+                tags_for_dynamic_prompt = self.ram_model.generate_tags_with_scores(
+                    samples["ram_image"].to(self.device),
+                    tag_only=tag_only,
+                )
+                # Store the dynamic prompt input
+                samples["tags_for_dynamic_prompt"] = tags_for_dynamic_prompt
+            prompt = [self.tag_prompt + tin for tin in prompt]
         return prompt
 
     def _generate_and_insert_dynamic_prompt(self, samples, input_tokens, inputs_embeds):
@@ -345,8 +332,6 @@ class LIONT5InstructAdapter(BaseModel):
         """
 
         if not self.enable_semantic_tags:
-            return inputs_embeds
-        if not self.dynamic_soft_prompt:
             return inputs_embeds
 
         tag_strings = samples["tags_for_dynamic_prompt"]
@@ -566,14 +551,9 @@ class LIONT5InstructAdapter(BaseModel):
 
         with self.maybe_autocast(dtype=torch.bfloat16):
             text_embeds = self.t5_model.encoder.embed_tokens(input_tokens.input_ids)
-            if not self.dynamic_soft_prompt:
-                text_embeds = self._insert_softTagHint(
-                    samples, input_tokens, text_embeds
-                )
-            else:
-                text_embeds = self._generate_and_insert_dynamic_prompt(
-                    samples, input_tokens, text_embeds
-                )
+            text_embeds = self._generate_and_insert_dynamic_prompt(
+                samples, input_tokens, text_embeds
+            )
             text_atts = input_tokens.attention_mask
 
             inputs_embeds = torch.cat([img_embeds, text_embeds], dim=1)
