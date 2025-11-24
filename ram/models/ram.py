@@ -341,13 +341,12 @@ class RAM(nn.Module):
         threshold=0.68,
         tag_input=None,
     ):
-        with torch.no_grad():
-            label_embed = torch.nn.functional.relu(self.wordvec_proj(self.label_embed))
+        label_embed = torch.nn.functional.relu(self.wordvec_proj(self.label_embed))
 
-            image_embeds = self.image_proj(self.visual_encoder(image))
-            image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
-                image.device
-            )
+        image_embeds = self.image_proj(self.visual_encoder(image))
+        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
+            image.device
+        )
 
         # recognized image tags using image-tag recogntiion decoder
         image_cls_embeds = image_embeds[:, 0, :]
