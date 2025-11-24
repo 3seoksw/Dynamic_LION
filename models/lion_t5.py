@@ -522,14 +522,9 @@ class LIONT5InstructAdapter(BaseModel):
             )
 
             text_embeds = self.t5_model.encoder.embed_tokens(input_tokens.input_ids)
-            if not self.dynamic_soft_prompt:
-                text_embeds = self._insert_softTagHint(
-                    samples, input_tokens, text_embeds
-                )
-            else:
-                text_embeds = self._generate_and_insert_dynamic_prompt(
-                    samples, input_tokens, text_embeds
-                )
+            text_embeds = self._generate_and_insert_dynamic_prompt(
+                samples, input_tokens, text_embeds
+            )
             text_atts = input_tokens.attention_mask
 
             input_embeds = torch.cat([img_embeds, text_embeds], dim=1)
