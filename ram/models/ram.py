@@ -341,13 +341,13 @@ class RAM(nn.Module):
         threshold=0.68,
         tag_input=None,
     ):
+        with torch.no_grad():
+            label_embed = torch.nn.functional.relu(self.wordvec_proj(self.label_embed))
 
-        label_embed = torch.nn.functional.relu(self.wordvec_proj(self.label_embed))
-
-        image_embeds = self.image_proj(self.visual_encoder(image))
-        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
-            image.device
-        )
+            image_embeds = self.image_proj(self.visual_encoder(image))
+            image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
+                image.device
+            )
 
         # recognized image tags using image-tag recogntiion decoder
         image_cls_embeds = image_embeds[:, 0, :]
@@ -384,7 +384,7 @@ class RAM(nn.Module):
 
         return tag_output, tag_output_chinese
 
-    def generate_tags_with_scores(self, image, threshold=0.5, top_k=40):
+    def generate_tags_with_scores(self, image, threshold=0.5, top_k=40, tag_only=False):
         """
         Generates tags and their confidence scores for dynamic prompt generation.
         Returns a string, e.g., "dog: 0.9876543, ball: 0.9654321, ..."
@@ -394,7 +394,7 @@ class RAM(nn.Module):
             threshold: Minimum confidence score to include a tag
             top_k: Maximum number of tags to consider (before threshold filtering)
         """
-        self.eval()
+        # self.eval()
         with torch.no_grad():
             # Get label embeddings and image embeddings
             label_embed = torch.nn.functional.relu(self.wordvec_proj(self.label_embed))
@@ -420,6 +420,8 @@ class RAM(nn.Module):
 
         # Process each image in batch
         tags_with_scores_list = []
+        tags_only_list = []
+        tags_only_ch_list = []
         for i in range(bs):
             # Get top-k most confident predictions
             top_k_scores, top_k_indices = torch.topk(
@@ -437,13 +439,23 @@ class RAM(nn.Module):
 
             # Build tag: score pairs, excluding delete_tag_index
             tags_scores_pairs = []
+            tags = []
+            tags_ch = []
             for idx, score in zip(final_indices_cpu, final_scores_cpu):
+                tag = self.tag_list[idx]
+                # token_chinese = self.tag_list_chinese[index].squeeze(axis=1)
+                tag_ch = self.tag_list_chinese[idx]
                 if idx not in self.delete_tag_index:
-                    tag = self.tag_list[idx]
                     tags_scores_pairs.append(f"{tag}: {score}")
+                tags.append(tag)
+                tags_ch.append(tag_ch)
 
             tags_with_scores_list.append(", ".join(tags_scores_pairs))
+            tags_only_list.append(", ".join(tags))
+            tags_only_ch_list.append(", ".join(tags_ch))
 
+        if tag_only:
+            return tags_only_list, tags_only_ch_list
         return tags_with_scores_list
 
     def generate_tag_openset(
