@@ -346,6 +346,8 @@ class LIONT5InstructAdapter(BaseModel):
 
         if not self.enable_semantic_tags:
             return inputs_embeds
+        if not self.dynamic_soft_prompt:
+            return inputs_embeds
 
         tag_strings = samples["tags_for_dynamic_prompt"]
         device = inputs_embeds.device
