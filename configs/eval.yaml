@@ -7,16 +7,14 @@ model:
   ram_model: "weights/ram_swin_large_14m.pth"
   dynamic_prompt_bert_path: "bert-base-uncased"
   dynamic_prompt_bert_ckpt: "weights/bert_embeddings.pt"
-  dynamic_soft_prompt: False
 
   # Model behavior
   visual_input: "ALL"
   enable_semantic_tags: True
 
   # Load a pretrained checkpoint
-  load_pretrained: False
-  pretrained: "weights/XL_stage3.pth"
-  # stage3 checkpoint can be download at https://huggingface.co/daybreaksly/LION-FlanT5-XL-stage3
+  load_pretrained: True
+  pretrained: "weights/checkpoint_9.pth"
 
 run:
   init_lr: 1e-5
@@ -31,12 +29,12 @@ run:
   output_dir: outputs/lion_stage4
   print_freq: 100
 
-train_datasets:
+eval_datasets:
   - ann_path: "images/image_level_data.json"
     vis_root: "images"
-    is_train: true
+    is_train: false
     sample_ratio: 1
   - ann_path: "images/region_level_data.json"
     vis_root: "images"
-    is_train: true
+    is_train: false
     sample_ratio: 1

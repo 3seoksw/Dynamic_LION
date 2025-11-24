@@ -71,8 +71,10 @@ class LIONT5InstructAdapter(BaseModel):
         vit_precision="fp16",
         freeze_vit=True,
         num_query_token=32,
+        dynamic_soft_prompt: bool = True,
     ):
         super().__init__()
+        self.dynamic_soft_prompt = dynamic_soft_prompt
         assert bert_model is not None, "The path for bert model is not provided."
         assert vit_model is not None, "The path for vit model is not provided."
         assert llm_model is not None, "The path for llm model is not provided."
@@ -153,14 +155,16 @@ class LIONT5InstructAdapter(BaseModel):
             self.tag_softPrompt_id = self.t5_tokenizer.convert_tokens_to_ids(
                 tag_sp_token
             )
-            # self.tag_prompt = "According to <extra_id_0>, you are allowed to use or partially use the following tags: [{}]. "
-            self.tag_prompt = tag_sp_token + " "
-            # self.soft_prompt_hint = nn.Parameter(
-            #     torch.zeros(self.t5_model.config.hidden_size)
-            # )
-            # self.soft_prompt_hint.data.normal_(
-            #     mean=0.0, std=self.t5_model.config.initializer_factor
-            # )
+            if not self.dynamic_soft_prompt:
+                self.tag_prompt = "According to <extra_id_0>, you are allowed to use or partially use the following tags: [{}]. "
+                # self.soft_prompt_hint = nn.Parameter(
+                #     torch.zeros(self.t5_model.config.hidden_size)
+                # )
+                # self.soft_prompt_hint.data.normal_(
+                #     mean=0.0, std=self.t5_model.config.initializer_factor
+                # )
+            else:
+                self.tag_prompt = tag_sp_token + " "
         logging.info(f"boost_lr_scale:{boost_lr_scale}")
 
     def maybe_autocast(self, dtype=torch.bfloat16):
@@ -278,20 +282,38 @@ class LIONT5InstructAdapter(BaseModel):
             images = torch.stack([self.ram_processor(img) for img in images]).to(
                 self.device
             )
-        tags = self.ram_model.generate_tag(images, threshold=0.85)[0]
+        with torch.cuda.amp.autocast(dtype=torch.float16):
+            tags = self.ram_model.generate_tag(images, threshold=0.85)[0]
         return [t.replace(" |", ",") for t in tags]
+
+    def generate_tags_with_scores(self, images) -> List[str]:
+        self._init_ram()
+        if not isinstance(images, torch.Tensor):
+            if isinstance(images, Image):
+                images = [images]
+            images = torch.stack([self.ram_processor(img) for img in images]).to(
+                self.device
+            )
+        tags_with_score = self.ram_model.generate_tags_with_scores(
+            images, threshold=0.85
+        )
+        return tags_with_score
 
     def _insert_tags(self, samples, prompt):
         if self.enable_semantic_tags:
             assert self.tag_prompt is not None, "Please provide Tags prompt."
             self._init_ram()
             # Generate tags with scores for the BERT model
-            tags_for_dynamic_prompt = self.ram_model.generate_tags_with_scores(
-                samples["ram_image"].to(self.device)
-            )
-
-            # Store the dynamic prompt input
-            samples["tags_for_dynamic_prompt"] = tags_for_dynamic_prompt
+            if "tags_for_dynamic_prompt" in samples:
+                tags_for_dynamic_prompt = samples["tags_for_dynamic_prompt"]
+            else:
+                tag_only = not self.dynamic_soft_prompt
+                tags_for_dynamic_prompt = self.ram_model.generate_tags_with_scores(
+                    samples["ram_image"].to(self.device),
+                    tag_only=tag_only,
+                )
+                # Store the dynamic prompt input
+                samples["tags_for_dynamic_prompt"] = tags_for_dynamic_prompt
             prompt = [self.tag_prompt + tin for tin in prompt]
         return prompt
 
@@ -347,6 +369,16 @@ class LIONT5InstructAdapter(BaseModel):
         relevant_embeddings = dynamic_prompt_embeds[batch_indices]
         inputs_embeds[batch_indices, seq_indices] = relevant_embeddings
 
+        return inputs_embeds
+
+    def _insert_softTagHint(self, samples, input_tokens, inputs_embeds):
+        if self.enable_semantic_tags:
+            bs = inputs_embeds.size(0)
+            sp_embeds = self.soft_prompt_hint.expand(bs, -1).to(inputs_embeds.dtype)
+            sp_index = (input_tokens.input_ids == self.tag_softPrompt_id).nonzero(
+                as_tuple=True
+            )
+            inputs_embeds[sp_index] = sp_embeds
         return inputs_embeds
 
     def get_optimizer_params(self, weight_decay, lr_scale=1):
@@ -504,7 +536,6 @@ class LIONT5InstructAdapter(BaseModel):
             )
 
             text_embeds = self.t5_model.encoder.embed_tokens(input_tokens.input_ids)
-            # text_embeds = self._insert_softTagHint(samples, input_tokens, text_embeds)
             text_embeds = self._generate_and_insert_dynamic_prompt(
                 samples, input_tokens, text_embeds
             )
@@ -549,7 +580,6 @@ class LIONT5InstructAdapter(BaseModel):
 
         with self.maybe_autocast(dtype=torch.bfloat16):
             text_embeds = self.t5_model.encoder.embed_tokens(input_tokens.input_ids)
-            # text_embeds = self._insert_softTagHint(samples, input_tokens, text_embeds)
             text_embeds = self._generate_and_insert_dynamic_prompt(
                 samples, input_tokens, text_embeds
             )
@@ -581,6 +611,8 @@ class LIONT5InstructAdapter(BaseModel):
 
     @classmethod
     def from_config(cls, cfg):
+        dynamic_soft_prompt = cfg.get("dynamic_soft_prompt")
+
         bert_model = cfg.get("bert_model")
         vit_model = cfg.get("vit_model")
         llm_model = cfg.get("llm_model")
@@ -602,6 +634,7 @@ class LIONT5InstructAdapter(BaseModel):
         num_query_token = cfg.get("num_query_token", 32)
 
         model = cls(
+            dynamic_soft_prompt=dynamic_soft_prompt,
             bert_model=bert_model,
             vit_model=vit_model,
             llm_model=llm_model,

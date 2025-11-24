@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 export TOKENIZERS_PARALLELISM=true
-GPUS=${GPUS:-0,1,2,3}
-NPROC=${NPROC:-4}
+GPUS=${GPUS:-0}
+NPROC=${NPROC:-1}
 PORT=${PORT:-12345}
 
 CFG=${CFG:-configs/lion_train_stage4.yaml}

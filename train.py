@@ -63,7 +63,7 @@ def main():
     model = build_model(cfg)
     train_datasets = build_train_datasets(cfg)
 
-    trainer = Trainer(cfg=cfg, accelerator=accelerator, model=model, train_datasets=train_datasets)
+    trainer = Trainer(cfg=cfg, accelerator=accelerator, model=model, train_datasets=train_datasets, log_path=out_dir)
     trainer.train(out_dir)
 
 

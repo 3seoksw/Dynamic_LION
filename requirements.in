@@ -28,3 +28,4 @@ kagglehub
 datasets
 sentence-transformers
 scikit-learn
+pycocotools
