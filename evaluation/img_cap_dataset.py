@@ -8,10 +8,13 @@ from preprocessors.lion_preprocessors import ImageEvalProcessor
 
 
 class ImgCapDataset(Dataset):
-    def __init__(self, dset_name: str, img_path: str, ann_path: str):
+    def __init__(
+        self, dset_name: str, img_path: str, ann_path: str, max_len: int = 1000
+    ):
         super().__init__()
         self.img_path = img_path
         self.ann_path = ann_path
+        self.max_len = max_len
 
         if dset_name == "coco":
             self._load_coco_ann_file()
@@ -40,6 +43,8 @@ class ImgCapDataset(Dataset):
                     continue
                     # raise RuntimeError(f"File not matching: {img_path}, {i} files matched")
                 samples.append((img_id, img_path, caption))
+                if len(samples) == self.max_len:
+                    break
             self.samples = samples
             print(f"COCO {i} files missing {len(samples)} loaded.")
 
@@ -61,6 +66,8 @@ class ImgCapDataset(Dataset):
                     # raise RuntimeError(f"File not matching: {img_path}, {i} files matched")
                 caption = info["caption_str"]
                 samples.append((img_id, img_path, caption))
+                if len(samples) == self.max_len:
+                    break
             self.samples = samples
             print(f"TextCaps {i} files missing {len(samples)} loaded.")
 
