@@ -55,6 +55,8 @@ class VQADataset(Dataset):
                     "top-1": answers,
                 }
                 self.samples.append(sample)
+                if len(self.samples) == self.max_len:
+                    break
 
     def _load_OKVQA_dset(self):
         q_data = {}
@@ -90,6 +92,8 @@ class VQADataset(Dataset):
                     "top-1": top_answers,
                 }
                 self.samples.append(sample)
+                if len(self.samples) == self.max_len:
+                    break
 
     def __len__(self):
         return len(self.samples)
