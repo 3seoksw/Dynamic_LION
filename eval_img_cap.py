@@ -54,7 +54,7 @@ def output_image_captions(model, dset: ImgCapDataset):
         hyp_caption = model.generate(
             {
                 "image": img.unsqueeze(0),
-                "ram_img": ram_img.unsqueeze(0),
+                "ram_image": ram_img.unsqueeze(0),
                 "question": [question],
                 # "tags_for_dynamic_prompt": t1,
                 "category": "image_level",

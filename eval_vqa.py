@@ -18,9 +18,9 @@ def build_model(cfg):
 
 def build_datasets():
     aokvqa_root = "images/aokvqa"
-    aokvqa_img_path = os.path.join(aokvqa_root, "coco/test2017")
-    aokvqa_q_path = os.path.join(aokvqa_root, "images/aokvqa/aokvqa_v1p0_test.json")
-    aokvqa_dset = VQADataset("okvqa", aokvqa_img_path, aokvqa_q_path, "")
+    aokvqa_img_path = os.path.join("images/coco_2017", "test2017")
+    aokvqa_q_path = os.path.join(aokvqa_root, "aokvqa_v1p0_test.json")
+    aokvqa_dset = VQADataset("aokvqa", aokvqa_img_path, aokvqa_q_path, "")
 
     okvqa_root = "images/okvqa"
     okvqa_img_path = os.path.join(okvqa_root, "images/val2014")
@@ -44,6 +44,14 @@ def parse_args():
     return ap.parse_args()
 
 
+def comp_pred_ans(pred, answers):
+    for p in pred:
+        for ans in answers:
+            if p in ans:
+                return 1
+    return 0
+
+
 def output_answer(model, dset: VQADataset):
     total = 0
     correct = 0
@@ -55,16 +63,15 @@ def output_answer(model, dset: VQADataset):
         pred = model.generate(
             {
                 "image": img.unsqueeze(0),
-                "ram_img": ram_img.unsqueeze(0),
+                "ram_image": ram_img.unsqueeze(0),
                 "question": [question],
                 # "tags_for_dynamic_prompt": t1,
                 "category": "image_level",
             }
         )
-        if pred in answers:
-            correct += 1
+        correct += comp_pred_ans(pred, answers)
 
-    return correct / total
+    return correct / total * 100
 
 
 def main():
@@ -82,3 +89,7 @@ def main():
     aokvqa_acc = output_answer(model, aokvqa_dset)
 
     print(okvqa_acc, aokvqa_acc)
+
+
+if __name__ == "__main__":
+    main()
